@@ -111,6 +111,9 @@ class Trade(Base):
         Enum(TradeStatus, name="trade_status_enum"), default=TradeStatus.OPEN
     )
 
+    webull_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    webull_position_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
     snapshots: Mapped[list["TimeSeriesSnapshot"]] = relationship(
         back_populates="trade", cascade="all, delete-orphan", order_by="TimeSeriesSnapshot.timestamp"
     )
@@ -119,6 +122,7 @@ class Trade(Base):
         Index("ix_trades_strategy", "strategy_name"),
         Index("ix_trades_status", "status"),
         Index("ix_trades_entry_ts", "entry_timestamp"),
+        Index("ix_trades_webull", "webull_account_id", "webull_position_id"),
     )
 
 
@@ -188,6 +192,7 @@ class WsbSentiment(Base):
     top_posts: Mapped[dict | None] = mapped_column(JSONB)
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     is_spike: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str] = mapped_column(String(20), default="apewisdom")
 
     __table_args__ = (
         Index("ix_wsb_symbol_scraped", "symbol", "scraped_at"),

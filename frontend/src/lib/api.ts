@@ -21,6 +21,18 @@ export const api = {
   getTrade: (id: string) => request<Trade>(`/api/trades/${id}`),
   createTrade: (data: TradeCreate) =>
     request<Trade>("/api/trades", { method: "POST", body: JSON.stringify(data) }),
+  previewWebullTradeImport: (params?: { account_id?: string; strategy_name?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.account_id) p.set("account_id", params.account_id);
+    if (params?.strategy_name) p.set("strategy_name", params.strategy_name);
+    const qs = p.toString() ? `?${p.toString()}` : "";
+    return request<WebullTradeImportPreview>(`/api/trades/sync/webull/preview${qs}`);
+  },
+  importWebullTrades: (body?: { account_id?: string; strategy_name?: string }) =>
+    request<WebullTradeImportResult>("/api/trades/sync/webull", {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
   closeTrade: (id: string, data: TradeClose) =>
     request<Trade>(`/api/trades/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   getSnapshots: (tradeId: string) =>
@@ -70,6 +82,28 @@ export const api = {
 
 // --- Types ---
 
+export interface WebullTradeImportPreview {
+  error?: string;
+  account_id?: string;
+  accounts?: { account_id?: string }[];
+  would_create: {
+    position_id: string;
+    symbol: string;
+    quantity: number;
+    direction: string;
+    position_type: string;
+    entry_price: number;
+  }[];
+  skipped: { reason: string; position_id?: string }[];
+}
+
+export interface WebullTradeImportResult {
+  error?: string;
+  account_id?: string;
+  imported?: number;
+  trade_ids?: string[];
+}
+
 export interface Trade {
   id: string;
   created_at: string;
@@ -77,6 +111,8 @@ export interface Trade {
   setup_classification: string | null;
   account: string;
   tags: string[] | null;
+  webull_account_id?: string | null;
+  webull_position_id?: string | null;
   entry_timestamp: string;
   underlying_symbol: string;
   entry_price: number;

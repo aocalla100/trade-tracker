@@ -6,8 +6,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.db.session import get_db
 from app.db.models import Trade, TimeSeriesSnapshot, TradeStatus
+from app.services.webull_service import WebullService, get_webull
+from app.services.webull_trade_sync import preview_webull_import, run_webull_import
 
 router = APIRouter()
 
@@ -109,6 +112,13 @@ class TradeResponse(BaseModel):
     exit_plan: Optional[dict]
     post_review: Optional[dict]
     status: str
+    webull_account_id: Optional[str] = None
+    webull_position_id: Optional[str] = None
+
+
+class WebullSyncRequest(BaseModel):
+    account_id: Optional[str] = None
+    strategy_name: str = "webull_positions"
 
 
 class SnapshotResponse(BaseModel):
@@ -177,6 +187,40 @@ async def list_trades(
     q = q.limit(limit).offset(offset)
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/sync/webull/preview")
+async def preview_webull_trade_import(
+    account_id: Optional[str] = None,
+    strategy_name: str = Query(default="webull_positions", max_length=100),
+    db: AsyncSession = Depends(get_db),
+    webull: WebullService = Depends(get_webull),
+):
+    """Dry-run: show Webull open positions that would become new journal trades."""
+    settings = get_settings()
+    if not settings.webull_app_key or not settings.webull_app_secret:
+        raise HTTPException(400, "Webull app key and secret are not configured")
+    return await preview_webull_import(
+        db, webull, account_id=account_id, strategy_name=strategy_name
+    )
+
+
+@router.post("/sync/webull", status_code=201)
+async def import_webull_trades(
+    payload: WebullSyncRequest,
+    db: AsyncSession = Depends(get_db),
+    webull: WebullService = Depends(get_webull),
+):
+    """Create open Trade rows from Webull positions (skips positions already linked to an open trade)."""
+    settings = get_settings()
+    if not settings.webull_app_key or not settings.webull_app_secret:
+        raise HTTPException(400, "Webull app key and secret are not configured")
+    return await run_webull_import(
+        db,
+        webull,
+        account_id=payload.account_id,
+        strategy_name=payload.strategy_name,
+    )
 
 
 @router.get("/{trade_id}", response_model=TradeResponse)

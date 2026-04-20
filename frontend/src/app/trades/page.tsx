@@ -13,13 +13,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search } from "lucide-react";
-import { api, type Trade } from "@/lib/api";
+import { Plus, Search, Download } from "lucide-react";
+import { api, type Trade, type WebullTradeImportPreview } from "@/lib/api";
 
 export default function TradesPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [filter, setFilter] = useState({ symbol: "", strategy: "", status: "" });
   const [showNew, setShowNew] = useState(false);
+  const [showWebull, setShowWebull] = useState(false);
+  const [webullPreview, setWebullPreview] = useState<WebullTradeImportPreview | null>(null);
+  const [webullAccountId, setWebullAccountId] = useState("");
+  const [webullBusy, setWebullBusy] = useState(false);
+  const [webullErr, setWebullErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +42,43 @@ export default function TradesPage() {
       setTrades(data);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadWebullPreview() {
+    setWebullErr(null);
+    setWebullBusy(true);
+    try {
+      const p = await api.previewWebullTradeImport(
+        webullAccountId.trim() ? { account_id: webullAccountId.trim() } : undefined
+      );
+      setWebullPreview(p);
+    } catch (e) {
+      setWebullErr(e instanceof Error ? e.message : "Preview failed");
+      setWebullPreview(null);
+    } finally {
+      setWebullBusy(false);
+    }
+  }
+
+  async function runWebullImport() {
+    setWebullErr(null);
+    setWebullBusy(true);
+    try {
+      const body =
+        webullAccountId.trim().length > 0 ? { account_id: webullAccountId.trim() } : {};
+      const r = await api.importWebullTrades(body);
+      if (r.error) {
+        setWebullErr(r.error);
+        return;
+      }
+      setShowWebull(false);
+      setWebullPreview(null);
+      await loadTrades();
+    } catch (e) {
+      setWebullErr(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setWebullBusy(false);
     }
   }
 
@@ -76,6 +118,86 @@ export default function TradesPage() {
           <h2 className="text-3xl font-bold tracking-tight">Trade Journal</h2>
           <p className="text-muted-foreground">Record, review, and analyze every trade</p>
         </div>
+        <div className="flex gap-2">
+        <Dialog
+          open={showWebull}
+          onOpenChange={(o) => {
+            setShowWebull(o);
+            if (o) {
+              setWebullPreview(null);
+              setWebullErr(null);
+              void loadWebullPreview();
+            }
+          }}
+        >
+          <DialogTrigger render={<Button variant="outline" />}>
+            <Download className="h-4 w-4 mr-2" />
+            Import from Webull
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Import open positions from Webull</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Creates journal trades for positions that are not already linked to an open
+              imported trade (same Webull position ID). Uses cost basis and quantity from Webull.
+            </p>
+            <div className="space-y-2 py-2">
+              <label className="text-sm font-medium">Webull account ID (optional)</label>
+              <Input
+                placeholder="Leave blank to use the first account"
+                value={webullAccountId}
+                onChange={(e) => setWebullAccountId(e.target.value)}
+              />
+              <Button type="button" variant="secondary" size="sm" disabled={webullBusy} onClick={() => void loadWebullPreview()}>
+                Refresh preview
+              </Button>
+            </div>
+            {webullErr && (
+              <p className="text-sm text-destructive">{webullErr}</p>
+            )}
+            {webullBusy && !webullPreview && !webullErr && (
+              <p className="text-sm text-muted-foreground">Loading preview…</p>
+            )}
+            {webullPreview?.error && (
+              <p className="text-sm text-destructive">
+                {webullPreview.error === "no_accounts"
+                  ? "No Webull accounts returned. Check WEBULL_APP_KEY, WEBULL_APP_SECRET, and WEBULL_ENVIRONMENT."
+                  : webullPreview.error === "no_account_id"
+                    ? "Could not resolve an account id."
+                    : webullPreview.error}
+              </p>
+            )}
+            {webullPreview && !webullPreview.error && (
+              <div className="space-y-2 text-sm">
+                <p>
+                  <span className="font-medium">{webullPreview.would_create?.length ?? 0}</span> new
+                  trade(s) will be created.
+                </p>
+                {(webullPreview.would_create?.length ?? 0) > 0 && (
+                  <ul className="list-disc pl-5 max-h-40 overflow-y-auto border rounded-md p-2">
+                    {webullPreview.would_create!.map((w) => (
+                      <li key={w.position_id}>
+                        {w.symbol} {w.direction} ×{w.quantity} @ {w.entry_price} ({w.position_type})
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {(webullPreview.skipped?.length ?? 0) > 0 && (
+                  <p className="text-muted-foreground">
+                    Skipped {webullPreview.skipped!.length} (already imported, zero qty, or invalid).
+                  </p>
+                )}
+                <Button
+                  disabled={webullBusy || (webullPreview.would_create?.length ?? 0) === 0}
+                  onClick={() => void runWebullImport()}
+                >
+                  Import now
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
         <Dialog open={showNew} onOpenChange={setShowNew}>
           <DialogTrigger render={<Button />}>
             <Plus className="h-4 w-4 mr-2" />New Trade
@@ -178,6 +300,7 @@ export default function TradesPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
@@ -249,7 +372,14 @@ export default function TradesPage() {
                   {trades.map((t) => (
                     <tr key={t.id} className="border-b border-border last:border-0 hover:bg-accent/50">
                       <td className="py-3 font-medium">{t.underlying_symbol}</td>
-                      <td className="py-3">{t.strategy_name}</td>
+                      <td className="py-3">
+                        <span className="inline-flex items-center gap-1 flex-wrap">
+                          {t.strategy_name}
+                          {t.webull_position_id ? (
+                            <Badge variant="outline" className="text-xs">Webull</Badge>
+                          ) : null}
+                        </span>
+                      </td>
                       <td className="py-3"><Badge variant="outline">{t.position_type}</Badge></td>
                       <td className="py-3">
                         <Badge variant={t.direction === "long" ? "default" : "secondary"}>

@@ -4,11 +4,11 @@ Trading journal and performance analytics platform with AI-powered insights.
 
 ## Features
 
-- **Trade Journal**: Full trade lifecycle tracking with immutable entry/exit snapshots, time-series Greeks, and decision logging
+- **Trade Journal**: Full trade lifecycle tracking with immutable entry/exit snapshots, time-series Greeks, and decision logging — plus **Import from Webull** to create open trades from live broker positions (deduped by Webull `position_id`)
 - **Performance Analytics**: Strategy win rates, expectancy, Greeks analysis, and behavioral patterns
 - **AI Insights**: Claude-powered chat with tool access to all trade data, plus proactive insight generation
 - **Market Data**: Real-time and historical data via Webull OpenAPI
-- **WSB Bets**: Reddit sentiment analysis from r/wallstreetbets with spike detection — tracked separately from core strategies
+- **WSB Bets**: WSB mention/sentiment from ApeWisdom (API) and SwaggyStocks (optional login scrape) with spike detection — tracked separately from core strategies
 - **Core Positions**: Long-term position tracking for TSLA, PLTR, and other holdings
 
 ## Tech Stack
@@ -18,7 +18,7 @@ Trading journal and performance analytics platform with AI-powered insights.
 - **Database**: PostgreSQL (Neon serverless in production)
 - **AI**: Anthropic Claude API with tool use
 - **Market Data**: Webull OpenAPI Python SDK
-- **Sentiment**: PRAW + VADER
+- **Sentiment**: ApeWisdom API + SwaggyStocks (optional)
 - **Hosting**: Cloudflare Pages (frontend) + Cloudflare Tunnel (backend)
 
 ## Quick Start
@@ -60,7 +60,7 @@ Copy `.env.example` to `.env` and fill in:
 - `DATABASE_URL` — PostgreSQL connection string
 - `ANTHROPIC_API_KEY` — Claude API key
 - `WEBULL_APP_KEY` / `WEBULL_APP_SECRET` — Webull OpenAPI credentials
-- `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` — Reddit app credentials
+- `SWAGGYSTOCKS_USERNAME` / `SWAGGYSTOCKS_PASSWORD` — Optional; enriches sentiment from SwaggyStocks (ApeWisdom needs no key)
 - `CLOUDFLARE_API_TOKEN` — For deployment
 
 ## Architecture
@@ -70,7 +70,7 @@ Frontend (Next.js) → FastAPI Backend → PostgreSQL
                          ↕
               Claude AI (tool use)
               Webull OpenAPI (market data)
-              PRAW (Reddit sentiment)
+              ApeWisdom + SwaggyStocks (WSB sentiment)
 ```
 
 ## Deployment

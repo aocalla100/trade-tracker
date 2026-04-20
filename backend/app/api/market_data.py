@@ -3,13 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.services.webull_service import WebullService
+from app.services.webull_service import WebullService, get_webull
 
 router = APIRouter()
-
-
-def get_webull() -> WebullService:
-    return WebullService()
 
 
 @router.get("/snapshot/{symbol}")

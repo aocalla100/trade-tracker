@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from app.config import get_settings
 
@@ -59,15 +59,43 @@ class WebullService:
         logger.error("Webull options error: %s %s", res.status_code, res.text)
         return {"error": res.text, "status_code": res.status_code}
 
-    def get_account_positions(self) -> dict:
+    def list_accounts(self) -> list[dict[str, Any]]:
+        """Return broker accounts (account_id, etc.) for the authenticated app."""
         res = self._trade_client.account_v2.get_account_list()
-        if res.status_code == 200:
-            accounts = res.json()
-            if accounts:
-                account_id = accounts[0].get("account_id")
-                pos_res = self._trade_client.account_v2.get_account_positions(
-                    account_id
-                )
-                if pos_res.status_code == 200:
-                    return pos_res.json()
-        return {"error": "Failed to fetch positions"}
+        if res.status_code != 200:
+            logger.error("Webull account list error: %s %s", res.status_code, res.text)
+            return []
+        data = res.json()
+        return data if isinstance(data, list) else []
+
+    def get_account_positions(self, account_id: str) -> list[dict[str, Any]]:
+        """Open positions for one account (SDK method is get_account_position)."""
+        res = self._trade_client.account_v2.get_account_position(account_id)
+        if res.status_code != 200:
+            logger.error(
+                "Webull positions error: %s %s", res.status_code, res.text
+            )
+            return []
+        data = res.json()
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            items = data.get("items")
+            if isinstance(items, list):
+                return items
+        return []
+
+    def get_account_positions_legacy(self) -> dict:
+        """Backward-compatible helper: first account's positions or error dict."""
+        accounts = self.list_accounts()
+        if not accounts:
+            return {"error": "No accounts returned"}
+        account_id = accounts[0].get("account_id")
+        if not account_id:
+            return {"error": "account_id missing"}
+        positions = self.get_account_positions(account_id)
+        return {"account_id": account_id, "positions": positions}
+
+
+def get_webull() -> WebullService:
+    return WebullService()
