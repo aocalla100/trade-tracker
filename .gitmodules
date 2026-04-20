@@ -1,0 +1,3 @@
+[submodule ".cursor-memory"]
+	path = .cursor-memory
+	url = https://github.com/aocalla100/cursor-memory.git

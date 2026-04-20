@@ -1,0 +1,16 @@
+---
+description: Consult shared project memory in .cursor-memory
+alwaysApply: true
+---
+
+# Shared project memory
+
+Always consult the `.cursor-memory` directory for:
+
+- **Architecture**: `.cursor-memory/architecture/` — system patterns, API design, infra decisions
+- **Conventions**: `.cursor-memory/conventions/` — coding standards, naming, git workflow
+- **Decisions**: `.cursor-memory/decisions/` — ADRs and prior decisions
+- **Snippets**: `.cursor-memory/snippets/` — reusable code (auth, db, ui)
+- **Playbooks**: `.cursor-memory/playbooks/` — debugging, deployment, onboarding
+
+Treat `.cursor-memory` as the shared project memory. Prefer patterns and decisions defined there when they apply. Use `memory-index.md` as the entry point.
