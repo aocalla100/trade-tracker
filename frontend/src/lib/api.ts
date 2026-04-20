@@ -1,10 +1,22 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
+  const url = `${API_BASE}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      ...options,
+    });
+  } catch (e) {
+    const hint =
+      typeof window !== "undefined" &&
+      window.location.origin.startsWith("http://127.0.0.1")
+        ? " You opened the app on 127.0.0.1 — the API must allow that origin (CORS) and NEXT_PUBLIC_API_URL must reach a running backend (try http://127.0.0.1:8000 if the API is bound to 127.0.0.1)."
+        : " Start the API (e.g. uvicorn app.main:app from the backend folder) and ensure NEXT_PUBLIC_API_URL matches where it listens.";
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`${msg} — cannot reach ${url}.${hint}`);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `API error: ${res.status}`);
